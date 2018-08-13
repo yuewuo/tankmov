@@ -10,6 +10,8 @@ bool lastTimeIsConnected = false;  // to print IP information each time you conn
 const char* PARAM_MESSAGE = "message";
 extern const uint8_t indexhtml_start[] asm("_binary_static_index_html_start");
 extern const uint8_t indexhtml_end[] asm("_binary_static_index_html_end");
+extern const uint8_t tank200png_start[] asm("_binary_static_tank200_png_start");
+extern const uint8_t tank200png_end[] asm("_binary_static_tank200_png_end");
 
 void setup() {
     Serial.begin(115200);
@@ -17,9 +19,11 @@ void setup() {
     wiFiMulti.addAP("CDMA", "1877309730");  // this is my WIFI hotspot, you can add your own here
 
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-        // request->send(200, "text/plain", "Hello, world");
-        AsyncWebServerResponse *response = request->beginResponse_P(200, "text/plain", indexhtml_start, indexhtml_end - indexhtml_start);  // in case the file is too large (10k level)
-        request->send(response);
+        request->send(request->beginResponse_P(200, "text/html", indexhtml_start, indexhtml_end - indexhtml_start));  // in case the file is too large (10k level)
+    });
+
+    server.on("/statc/tank200.png", HTTP_GET, [](AsyncWebServerRequest *request){
+        request->send(request->beginResponse_P(200, "text/html", tank200png_start, tank200png_end - tank200png_start));  // the image file is too large (33k)
     });
 
     server.on("/post", HTTP_POST, [](AsyncWebServerRequest *request){
