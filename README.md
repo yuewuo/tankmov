@@ -19,5 +19,17 @@ just implement a web server with POST and GET http supported.
 
 **not implement a WebSocket version though it might be better with bidirectional communication**
 
+### 2. PID control
 
+using MATLAB ` AutotunerPID Toolkit `
+
+it has been ported to Arduino "https://playground.arduino.cc/Code/PIDAutotuneLibrary"
+
+## Dependencies
+
+Arduino
+
+ESP32 for Arduino
+
+PlatformIO (on vscode), this is for embedding html file into firmware automatically
 
