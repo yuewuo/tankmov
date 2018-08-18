@@ -5,6 +5,20 @@
 #include "AsyncJson.h"
 #include "ArduinoJson.h"
 
+// set how to detect speed, using pin change interrupt or using 10kHz timer
+#if false
+    #define USING_INTERRUPT_DETECT_SPEED
+#else
+    #define USING_10KHzTIMR_DETECT_SPEED
+    hw_timer_t * timer = NULL;
+    #define PRESCALER 80  // prescale to 1MHz
+    #define TIMER_CHANNEL 2  // since timer 0 and 1 will be used to generate PWM, use another one
+    #define TIMER_FREQUENCY 1000000
+#endif
+
+// whether to print the 4 pin bits read in "motor_INT" function, this is just print data in interrupt function, which is unreliable implementation
+#define ENABLE_MOTOR_INT_DATA_OUTPUT
+
 #define PWM_FREQUENCY 20000  // 20kHz
 #define PWM_RESOLUTION 10  // bit, the resolution of PWM duty
 const int MAX_PWM_DUTY = (1<<PWM_RESOLUTION) - 1;  // the maxmium duty
@@ -37,7 +51,7 @@ extern const uint8_t jsjquery_end[] asm("_binary_static_js_jquery_min_js_end");
 volatile uint8_t lastM1, lastM2;
 volatile int32_t mov1, mov2;
 
-void motor_INT() {  // handling magnetic coding part
+void IRAM_ATTR motor_INT() {  // handling magnetic coding part
     uint8_t thisM1 = (((uint8_t)digitalRead(M1A)) << 1) + digitalRead(M1B);
     uint8_t thisM2 = (((uint8_t)digitalRead(M2A)) << 1) + digitalRead(M2B);
     uint8_t xor1 = thisM1 ^ lastM1, xor2 = thisM2 ^ lastM2;
@@ -72,6 +86,9 @@ void motor_INT() {  // handling magnetic coding part
     }
     mov1 += ch1;
     mov2 += ch2;
+    #ifdef ENABLE_MOTOR_INT_DATA_OUTPUT
+        Serial.print((char)(0x30 | (thisM1<<2) | thisM2));  // referred to ASCII table, this would be 0~9 : ; < = > ?, M1A-M1B-M2A-M2B order
+    #endif
 }
 
 #define Err(xxx) do {\
@@ -196,10 +213,17 @@ void setup() {
     pinMode(M2P, OUTPUT);
     pinMode(M2N, OUTPUT);
 
-    attachInterrupt(M1A, motor_INT, CHANGE);  // all link to one interrupt function
-    attachInterrupt(M1B, motor_INT, CHANGE);
-    attachInterrupt(M2A, motor_INT, CHANGE);
-    attachInterrupt(M2B, motor_INT, CHANGE);
+    #ifdef USING_INTERRUPT_DETECT_SPEED
+        attachInterrupt(M1A, motor_INT, CHANGE);  // all link to one interrupt function
+        attachInterrupt(M1B, motor_INT, CHANGE);
+        attachInterrupt(M2A, motor_INT, CHANGE);
+        attachInterrupt(M2B, motor_INT, CHANGE);
+    #elif defined USING_10KHzTIMR_DETECT_SPEED
+        timer = timerBegin(TIMER_CHANNEL, PRESCALER, true);
+        timerAttachInterrupt(timer, motor_INT, true);
+        timerAlarmWrite(timer, 80000000 / PRESCALER / TIMER_FREQUENCY, true);  // true is to repeat
+        timerAlarmEnable(timer);  // enable interrupt
+    #endif
 
     // use LEDc to generate PWM
     ledcAttachPin(M1P, 0);
