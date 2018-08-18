@@ -93,17 +93,17 @@ void setup() {
     });
 
     // add static resources
-    server.on("/statc/tank200.png", HTTP_GET, [](AsyncWebServerRequest *request){
-        request->send(request->beginResponse_P(200, "text/html", tank200png_start, tank200png_end - tank200png_start));  // the image file is too large (33k)
+    server.on("/static/tank200.png", HTTP_GET, [](AsyncWebServerRequest *request){
+        request->send(request->beginResponse_P(200, "image/png", tank200png_start, tank200png_end - tank200png_start));  // the image file is too large (33k)
     });
-    server.on("/statc/css/bootstrap.min.css", HTTP_GET, [](AsyncWebServerRequest *request){
-        request->send(request->beginResponse_P(200, "text/html", cssbootstrap_start, cssbootstrap_end - cssbootstrap_start));  // the image file is too large (33k)
+    server.on("/static/css/bootstrap.min.css", HTTP_GET, [](AsyncWebServerRequest *request){
+        request->send(request->beginResponse_P(200, "text/css", cssbootstrap_start, cssbootstrap_end - cssbootstrap_start));  // the image file is too large (33k)
     });
-    server.on("/statc/js/bootstrap.min.js", HTTP_GET, [](AsyncWebServerRequest *request){
-        request->send(request->beginResponse_P(200, "text/html", jsbootstrap_start, jsbootstrap_end - jsbootstrap_start));  // the image file is too large (33k)
+    server.on("/static/js/bootstrap.min.js", HTTP_GET, [](AsyncWebServerRequest *request){
+        request->send(request->beginResponse_P(200, "application/x-javascript", jsbootstrap_start, jsbootstrap_end - jsbootstrap_start));  // the image file is too large (33k)
     });
-    server.on("/statc/js/jquery.min.js", HTTP_GET, [](AsyncWebServerRequest *request){
-        request->send(request->beginResponse_P(200, "text/html", jsjquery_start, jsjquery_end - jsjquery_start));  // the image file is too large (33k)
+    server.on("/static/js/jquery.min.js", HTTP_GET, [](AsyncWebServerRequest *request){
+        request->send(request->beginResponse_P(200, "application/x-javascript", jsjquery_start, jsjquery_end - jsjquery_start));  // the image file is too large (33k)
     });
 
     server.on("/setMode", HTTP_POST, [](AsyncWebServerRequest *request){
