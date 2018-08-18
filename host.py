@@ -20,7 +20,7 @@ def nowState():
         'mode': mode,
         'heap': '666',
         'ssid': 'CDMAwtf',
-        'millis': time.localtime()
+        'millis': int(time.time() * 1000)
     })
 
 @app.route("/sync", methods=['GET'])
