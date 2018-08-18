@@ -14,13 +14,17 @@ def index():
     return app.send_static_file('index.html')
 
 mode = "PWM"
+pwm = [0, 0]
 def nowState():
     global mode
+    global pwm
     return jsonify({
         'mode': mode,
         'heap': '666',
         'ssid': 'CDMAwtf',
-        'millis': int(time.time() * 1000)
+        'millis': int(time.time() * 1000),
+        'pwm0': pwm[0],
+        'pwm1': pwm[1]
     })
 
 @app.route("/sync", methods=['GET'])
@@ -33,6 +37,23 @@ def setMode():
     if 'mode' in request.form:
         print('set mode to: ' + request.form['mode'])
         mode = request.form['mode']
+    return nowState()
+
+@app.route("/setPWM", methods=['POST'])
+def setPWM():
+    global pwm
+    if 'pwm0' in request.form:
+        print('set pwm0 to: ' + request.form['pwm0'])
+        pwm0 = int(request.form['pwm0'])
+        if pwm0 > 100: pwm0 = 100
+        if pwm0 < -100: pwm0 = -100
+        pwm[0] = pwm0
+    if 'pwm1' in request.form:
+        print('set pwm1 to: ' + request.form['pwm1'])
+        pwm1 = int(request.form['pwm1'])
+        if pwm1 > 100: pwm1 = 100
+        if pwm1 < -100: pwm1 = -100
+        pwm[1] = pwm1
     return nowState()
 
 if __name__=='__main__':

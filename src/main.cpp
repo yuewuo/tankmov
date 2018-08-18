@@ -80,7 +80,8 @@ void motor_INT() {  // handling magnetic coding part
 } while (0)
 
 // static machine
-enum {PWM, PID} mode;
+enum {PWM, PID} mode = PWM;
+int pwm[2] = {0, 0};
 void setNowState(AsyncWebServerRequest *request) {
     AsyncResponseStream *response = request->beginResponseStream("application/json");
     DynamicJsonBuffer jsonBuffer;
@@ -91,8 +92,15 @@ void setNowState(AsyncWebServerRequest *request) {
         (mode == PID ? "PID" :
         "UNKNOWN");
     root["millis"] = millis();
+    root["pwm0"] = String(pwm[0]);
+    root["pwm1"] = String(pwm[1]);
     root.printTo(*response);
     request->send(response);
+}
+
+void updatePWM() {
+    Serial.println(pwm[0]);
+    Serial.println(pwm[1]);
 }
 
 void setup() {
@@ -123,7 +131,6 @@ void setup() {
     });
 
     server.on("/setMode", HTTP_POST, [](AsyncWebServerRequest *request){
-        String message;
         if (request->hasParam("mode", true)) {
             const String& newMode = request->getParam("mode", true)->value();
             if (newMode == "PWM") mode = PWM;
@@ -131,6 +138,23 @@ void setup() {
             else Err("unrecognized mode");
         } else {
             Err("setMode called but no mode provided");
+        }
+        setNowState(request);
+    });
+
+    server.on("/setPWM", HTTP_POST, [](AsyncWebServerRequest *request){
+        if (request->hasParam("pwm0", true) && request->hasParam("pwm1", true)) {
+            int pwm0 = atoi(request->getParam("pwm0", true)->value().c_str());
+            int pwm1 = atoi(request->getParam("pwm1", true)->value().c_str());
+            if (pwm0 > 100) pwm0 = 100;
+            if (pwm0 < -100) pwm0 = -100;
+            if (pwm1 > 100) pwm1 = 100;
+            if (pwm1 < -100) pwm1 = -100;  // limit the bound
+            pwm[0] = pwm0;
+            pwm[1] = pwm1;
+            setPWM();
+        } else {
+            Err("setPWM called but no pwm0 and pwm1 provided");
         }
         setNowState(request);
     });
