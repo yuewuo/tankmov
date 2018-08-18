@@ -101,7 +101,7 @@ void IRAM_ATTR motor_INT() {  // handling magnetic coding part
 } while (0)
 
 // static machine
-enum {PWM, PID} mode = PWM;
+enum {PWM, PID} mode;
 volatile int pwm0 = 0;
 volatile int pwm1 = 0;
 void setNowState(AsyncWebServerRequest *request) {
@@ -141,6 +141,9 @@ void updatePWM() {
 }
 
 void setup() {
+
+    mode = PWM;  // initialize mode
+
     Serial.begin(115200);
     Serial.println("movduino.ino    created on 2018/6/13 by wuyuepku");
     wiFiMulti.addAP("CDMA", "1877309730");  // this is my WIFI hotspot, you can add your own here
