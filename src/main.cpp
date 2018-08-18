@@ -5,6 +5,10 @@
 #include "AsyncJson.h"
 #include "ArduinoJson.h"
 
+#define PWM_FREQUENCY 20000  // 20kHz
+#define PWM_RESOLUTION 10  // bit, the resolution of PWM duty
+const int MAX_PWM_DUTY = (1<<PWM_RESOLUTION) - 1;  // the maxmium duty
+
 WiFiMulti wiFiMulti;  // enables multiple WIFI connection try
 AsyncWebServer server(80);  // listen for connection on 80 port
 bool lastTimeIsConnected = false;  // to print IP information each time you connected
@@ -22,7 +26,7 @@ extern const uint8_t jsjquery_end[] asm("_binary_static_js_jquery_min_js_end");
 
 #define M1A 12  // magnetic coding A
 #define M1B 14
-#define M1P 27  // motor P
+#define M1P 2//27  // motor P
 #define M1N 26
 
 #define M2A 33
@@ -81,7 +85,8 @@ void motor_INT() {  // handling magnetic coding part
 
 // static machine
 enum {PWM, PID} mode = PWM;
-int pwm[2] = {0, 0};
+volatile int pwm0 = 0;
+volatile int pwm1 = 0;
 void setNowState(AsyncWebServerRequest *request) {
     AsyncResponseStream *response = request->beginResponseStream("application/json");
     DynamicJsonBuffer jsonBuffer;
@@ -92,15 +97,30 @@ void setNowState(AsyncWebServerRequest *request) {
         (mode == PID ? "PID" :
         "UNKNOWN");
     root["millis"] = millis();
-    root["pwm0"] = String(pwm[0]);
-    root["pwm1"] = String(pwm[1]);
+    root["pwm0"] = pwm0;
+    root["pwm1"] = pwm1;
     root.printTo(*response);
     request->send(response);
 }
 
+inline void _updatePWMSubFunc(int pwm, int ch1, int ch2) {
+    if (pwm == 0) {
+        ledcWrite(ch1, 0);
+        ledcWrite(ch2, 0);
+    } else if (pwm > 0) {
+        ledcWrite(ch2, 0);
+        ledcWrite(ch1, pwm);
+    } else {
+        ledcWrite(ch1, 0);
+        ledcWrite(ch2, -pwm);
+    }
+}
+
 void updatePWM() {
-    Serial.println(pwm[0]);
-    Serial.println(pwm[1]);
+    _updatePWMSubFunc(pwm0, 0, 1);  // you can adjust the order of para 2 and 3 to reach the wanted direction
+    _updatePWMSubFunc(pwm1, 2, 3);
+    // Log(pwm[0]);
+    // Log(pwm[1]);
 }
 
 void setup() {
@@ -144,15 +164,19 @@ void setup() {
 
     server.on("/setPWM", HTTP_POST, [](AsyncWebServerRequest *request){
         if (request->hasParam("pwm0", true) && request->hasParam("pwm1", true)) {
-            int pwm0 = atoi(request->getParam("pwm0", true)->value().c_str());
-            int pwm1 = atoi(request->getParam("pwm1", true)->value().c_str());
-            if (pwm0 > 100) pwm0 = 100;
-            if (pwm0 < -100) pwm0 = -100;
-            if (pwm1 > 100) pwm1 = 100;
-            if (pwm1 < -100) pwm1 = -100;  // limit the bound
-            pwm[0] = pwm0;
-            pwm[1] = pwm1;
-            setPWM();
+            if (mode == PWM) {
+                int tpwm0 = atoi(request->getParam("pwm0", true)->value().c_str());
+                int tpwm1 = atoi(request->getParam("pwm1", true)->value().c_str());
+                if (tpwm0 > MAX_PWM_DUTY) tpwm0 = MAX_PWM_DUTY;
+                if (tpwm0 < -MAX_PWM_DUTY) tpwm0 = -MAX_PWM_DUTY;
+                if (tpwm1 > MAX_PWM_DUTY) tpwm1 = MAX_PWM_DUTY;
+                if (tpwm1 < -MAX_PWM_DUTY) tpwm1 = -MAX_PWM_DUTY;  // limit the bound
+                pwm0 = tpwm0;
+                pwm1 = tpwm1;
+                updatePWM();
+            } else {
+                Err("cannot set PWM when mode is not \"PWM\"");
+            }
         } else {
             Err("setPWM called but no pwm0 and pwm1 provided");
         }
@@ -176,6 +200,22 @@ void setup() {
     attachInterrupt(M1B, motor_INT, CHANGE);
     attachInterrupt(M2A, motor_INT, CHANGE);
     attachInterrupt(M2B, motor_INT, CHANGE);
+
+    // use LEDc to generate PWM
+    ledcAttachPin(M1P, 0);
+    ledcAttachPin(M1N, 1);
+    ledcAttachPin(M2P, 2);
+    ledcAttachPin(M2N, 3);
+    // channels 0-15, resolution 1-16 bits, freq limits depend on resolution
+    // ledcSetup(uint8_t channel, uint32_t freq, uint8_t resolution_bits);
+    ledcSetup(0, PWM_FREQUENCY, PWM_RESOLUTION);
+    ledcSetup(1, PWM_FREQUENCY, PWM_RESOLUTION);
+    ledcSetup(2, PWM_FREQUENCY, PWM_RESOLUTION);
+    ledcSetup(3, PWM_FREQUENCY, PWM_RESOLUTION);
+    ledcWrite(0, 0);  // close all the PWM output
+    ledcWrite(1, 0);
+    ledcWrite(2, 0);
+    ledcWrite(3, 0);
 
 }
 

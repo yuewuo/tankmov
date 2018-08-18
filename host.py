@@ -2,6 +2,10 @@
 this file is for testing the index.html file, with server side API simulation
 """
 
+PWM_FREQUENCY = 20000
+PWM_RESOLUTION = 10
+MAX_PWM_DUTY = 2**PWM_RESOLUTION - 1
+
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for
 import logging, json, time
 from flask_socketio import SocketIO, emit, join_room, leave_room
@@ -45,14 +49,14 @@ def setPWM():
     if 'pwm0' in request.form:
         print('set pwm0 to: ' + request.form['pwm0'])
         pwm0 = int(request.form['pwm0'])
-        if pwm0 > 100: pwm0 = 100
-        if pwm0 < -100: pwm0 = -100
+        if pwm0 > MAX_PWM_DUTY: pwm0 = MAX_PWM_DUTY
+        if pwm0 < -MAX_PWM_DUTY: pwm0 = -MAX_PWM_DUTY
         pwm[0] = pwm0
     if 'pwm1' in request.form:
         print('set pwm1 to: ' + request.form['pwm1'])
         pwm1 = int(request.form['pwm1'])
-        if pwm1 > 100: pwm1 = 100
-        if pwm1 < -100: pwm1 = -100
+        if pwm1 > MAX_PWM_DUTY: pwm1 = MAX_PWM_DUTY
+        if pwm1 < -MAX_PWM_DUTY: pwm1 = -MAX_PWM_DUTY
         pwm[1] = pwm1
     return nowState()
 
