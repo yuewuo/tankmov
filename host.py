@@ -3,7 +3,7 @@ this file is for testing the index.html file, with server side API simulation
 """
 
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for
-import logging, json
+import logging, json, time
 from flask_socketio import SocketIO, emit, join_room, leave_room
 app = Flask(__name__)
 socketio = SocketIO()
@@ -17,7 +17,10 @@ mode = "PWM"
 def nowState():
     global mode
     return jsonify({
-        'mode': mode
+        'mode': mode,
+        'heap': '666',
+        'ssid': 'CDMAwtf',
+        'millis': time.localtime()
     })
 
 @app.route("/sync", methods=['GET'])

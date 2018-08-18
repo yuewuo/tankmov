@@ -70,6 +70,15 @@ void motor_INT() {  // handling magnetic coding part
     mov2 += ch2;
 }
 
+#define Err(xxx) do {\
+    Serial.print("error: ");\
+    Serial.println(xxx);\
+} while (0)
+#define Log(xxx) do {\
+    Serial.print("log: ");\
+    Serial.println(xxx);\
+} while (0)
+
 // static machine
 enum {PWM, PID} mode;
 void setNowState(AsyncWebServerRequest *request) {
@@ -78,7 +87,10 @@ void setNowState(AsyncWebServerRequest *request) {
     JsonObject &root = jsonBuffer.createObject();
     root["heap"] = ESP.getFreeHeap();
     root["ssid"] = WiFi.SSID();
-    root["mode"] = mode;
+    root["mode"] = mode == PWM ? "PWM" : 
+        (mode == PID ? "PID" :
+        "UNKNOWN");
+    root["millis"] = millis();
     root.printTo(*response);
     request->send(response);
 }
@@ -106,14 +118,21 @@ void setup() {
         request->send(request->beginResponse_P(200, "application/x-javascript", jsjquery_start, jsjquery_end - jsjquery_start - 1));  // the image file is too large (33k)
     });
 
+    server.on("/sync", HTTP_GET, [](AsyncWebServerRequest *request) {
+        setNowState(request);
+    });
+
     server.on("/setMode", HTTP_POST, [](AsyncWebServerRequest *request){
         String message;
         if (request->hasParam("mode", true)) {
-            message = request->getParam("mode", true)->value();
+            const String& newMode = request->getParam("mode", true)->value();
+            if (newMode == "PWM") mode = PWM;
+            else if (newMode == "PID") mode = PID;
+            else Err("unrecognized mode");
         } else {
-            message = "No message sent";
+            Err("setMode called but no mode provided");
         }
-        request->send(200, "text/plain", "Hello, POST: " + message);
+        setNowState(request);
     });
 
     server.onNotFound([](AsyncWebServerRequest *request){

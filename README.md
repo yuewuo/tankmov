@@ -1,7 +1,7 @@
 # tankmov
 tank controller based on ESP32 WIFI chip. enables PID speed control as well as postion based control &amp; measurements
 
-## <div style="color:red;">Known Bug</div>
+## <font style="color:red;">Known Bug</font >
 
 - the `PlatformIO` plugin has a bug that add a unreadable char at the end of each file. It has been walked around by sending `length-1` of the origin file to eliminate this problem, but still stupid.
 
