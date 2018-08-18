@@ -14,18 +14,31 @@
 <link rel="shortcut icon" href="/static/tank200.png" type="image/x-icon">
 
 <style>
-
+    .main {
+        max-width: 800px;
+        margin: 10px auto 0 auto;
+        align-self: center;
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+    .basic-button {
+        height: 60px;
+    }
 </style>
 
 </head>
 <body>
-<div>
+<div class="main">
     <div>
         <h1>tankmov controller</h1>
-        <button type="button" class="btn btn-success basic-button" id="Init" onclick="leftButtonClicked('Init');">Init</button>
+        <button type="button" class="btn btn-primary basic-button" onclick="setMode('PID');">PID mode</button>
+        <button type="button" class="btn btn-warning basic-button" onclick="setMode('PWM');">PWM mode</button>
+        <button type="button" class="btn btn-success basic-button" onclick="sync();" style="width:60px; float: right;">Sync</button>
     </div>
-    
-    
+    <hr style="filter: alpha(opacity=100,finishopacity=0,style=3)" width="80%" color=#987cb9 SIZE=3>
+    <div>
+        Current Mode: <strong id="mode">UNKNOWN</strong>
+    </div>
 </div>
 
 <!-- Optional JavaScript -->
@@ -33,15 +46,29 @@
 
 <script src="/static/js/jquery.min.js"></script>
 <script src="/static/js/bootstrap.min.js"></script>
-
-<script id='log' type="text/html">  <!-- 这个是用来显示python发来的消息的模板 -->
-    <div class="alert alert-warning alert-dismissible fade show" role="alert" style="margin: 10px;">
-        <strong>Message:</strong>  {{:msg}}
-        <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-    </div>
-</script>
-
+    
 <script>
+    
+    function updateView(settings) {
+        console.log(settings);
+        if ('mode' in settings) {
+            $('#mode').html(settings['mode']);
+        }
+    }
+    function sync() {
+        $.get("sync", function(result) {
+            updateView(result);
+        });
+    }
+    function setMode(mode) {
+        $.post("setMode", {
+            mode: mode
+        }, function(result) {
+            updateView(result);
+        });
+    }
+
+    $(sync);  // when the file is loaded, call sync
 
 </script>
 </body>

@@ -2,12 +2,13 @@
 #include <WiFi.h>
 #include <WiFiMulti.h>
 #include <ESPAsyncWebServer.h>
+#include "AsyncJson.h"
+#include "ArduinoJson.h"
 
 WiFiMulti wiFiMulti;  // enables multiple WIFI connection try
 AsyncWebServer server(80);  // listen for connection on 80 port
 bool lastTimeIsConnected = false;  // to print IP information each time you connected
 
-const char* PARAM_MESSAGE = "message";
 extern const uint8_t indexhtml_start[] asm("_binary_static_index_html_start");
 extern const uint8_t indexhtml_end[] asm("_binary_static_index_html_end");
 extern const uint8_t tank200png_start[] asm("_binary_static_tank200_png_start");
@@ -69,6 +70,19 @@ void motor_INT() {  // handling magnetic coding part
     mov2 += ch2;
 }
 
+// static machine
+enum {PWM, PID} mode;
+void setNowState(AsyncWebServerRequest *request) {
+    AsyncResponseStream *response = request->beginResponseStream("application/json");
+    DynamicJsonBuffer jsonBuffer;
+    JsonObject &root = jsonBuffer.createObject();
+    root["heap"] = ESP.getFreeHeap();
+    root["ssid"] = WiFi.SSID();
+    root["mode"] = mode;
+    root.printTo(*response);
+    request->send(response);
+}
+
 void setup() {
     Serial.begin(115200);
     Serial.println("movduino.ino    created on 2018/6/13 by wuyuepku");
@@ -92,10 +106,10 @@ void setup() {
         request->send(request->beginResponse_P(200, "text/html", jsjquery_start, jsjquery_end - jsjquery_start));  // the image file is too large (33k)
     });
 
-    server.on("/post", HTTP_POST, [](AsyncWebServerRequest *request){
+    server.on("/setMode", HTTP_POST, [](AsyncWebServerRequest *request){
         String message;
-        if (request->hasParam(PARAM_MESSAGE, true)) {
-            message = request->getParam(PARAM_MESSAGE, true)->value();
+        if (request->hasParam("mode", true)) {
+            message = request->getParam("mode", true)->value();
         } else {
             message = "No message sent";
         }

@@ -13,5 +13,24 @@ socketio.init_app(app=app)
 def index():
     return app.send_static_file('index.html')
 
+mode = "PWM"
+def nowState():
+    global mode
+    return jsonify({
+        'mode': mode
+    })
+
+@app.route("/sync", methods=['GET'])
+def sync():
+    return nowState()
+
+@app.route("/setMode", methods=['POST'])
+def setMode():
+    global mode
+    if 'mode' in request.form:
+        print('set mode to: ' + request.form['mode'])
+        mode = request.form['mode']
+    return nowState()
+
 if __name__=='__main__':
     socketio.run(app, host='0.0.0.0', port=80)
