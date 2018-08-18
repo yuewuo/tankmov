@@ -12,6 +12,12 @@ extern const uint8_t indexhtml_start[] asm("_binary_static_index_html_start");
 extern const uint8_t indexhtml_end[] asm("_binary_static_index_html_end");
 extern const uint8_t tank200png_start[] asm("_binary_static_tank200_png_start");
 extern const uint8_t tank200png_end[] asm("_binary_static_tank200_png_end");
+extern const uint8_t cssbootstrap_start[] asm("_binary_static_css_bootstrap_min_css_start");
+extern const uint8_t cssbootstrap_end[] asm("_binary_static_css_bootstrap_min_css_end");
+extern const uint8_t jsbootstrap_start[] asm("_binary_static_js_bootstrap_min_js_start");
+extern const uint8_t jsbootstrap_end[] asm("_binary_static_js_bootstrap_min_js_end");
+extern const uint8_t jsjquery_start[] asm("_binary_static_js_jquery_min_js_start");
+extern const uint8_t jsjquery_end[] asm("_binary_static_js_jquery_min_js_end");
 
 #define M1A 12  // magnetic coding A
 #define M1B 14
@@ -72,8 +78,18 @@ void setup() {
         request->send(request->beginResponse_P(200, "text/html", indexhtml_start, indexhtml_end - indexhtml_start));  // in case the file is too large (10k level)
     });
 
+    // add static resources
     server.on("/statc/tank200.png", HTTP_GET, [](AsyncWebServerRequest *request){
         request->send(request->beginResponse_P(200, "text/html", tank200png_start, tank200png_end - tank200png_start));  // the image file is too large (33k)
+    });
+    server.on("/statc/css/bootstrap.min.css", HTTP_GET, [](AsyncWebServerRequest *request){
+        request->send(request->beginResponse_P(200, "text/html", cssbootstrap_start, cssbootstrap_end - cssbootstrap_start));  // the image file is too large (33k)
+    });
+    server.on("/statc/js/bootstrap.min.js", HTTP_GET, [](AsyncWebServerRequest *request){
+        request->send(request->beginResponse_P(200, "text/html", jsbootstrap_start, jsbootstrap_end - jsbootstrap_start));  // the image file is too large (33k)
+    });
+    server.on("/statc/js/jquery.min.js", HTTP_GET, [](AsyncWebServerRequest *request){
+        request->send(request->beginResponse_P(200, "text/html", jsjquery_start, jsjquery_end - jsjquery_start));  // the image file is too large (33k)
     });
 
     server.on("/post", HTTP_POST, [](AsyncWebServerRequest *request){
