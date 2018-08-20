@@ -1,0 +1,52 @@
+#include <iostream>
+using namespace std;
+
+#define unlikely(x) __builtin_expect(!!(x), 0)
+
+struct FIFO {  // this is designed to be thread safe, one thread for read and another for write
+    char *rptr;
+    char *wptr;
+    char *head;
+    char *tail;
+    bool write(char data) {  // return 0 if success, otherwise error
+        char *w = wptr+1;
+        if (unlikely(w == tail)) w = head;
+        if (unlikely(w == rptr)) return 1;  // fifo is full!
+        *wptr = data;  // must save data first
+        wptr = w;      // then change the pointer
+        return 0;
+    }
+    inline bool has() {
+        return rptr != wptr;
+    }
+    char read() {  // assume there has data, make sure you have check that!
+        char a = *rptr;
+        char *r = rptr+1;
+        if (unlikely(r == tail)) r = head;
+        rptr = r;  // then copy the pointer to it, do not change the rptr directly to avoid confliction with "write"
+        return a;
+    }
+};
+
+struct FIFO fifo;
+#define INTBUF_SIZE 3
+char intbuf[INTBUF_SIZE];
+
+int main() {
+    cout << "test" << endl;
+
+    fifo.head = intbuf;
+    fifo.tail = intbuf + INTBUF_SIZE;
+    fifo.wptr = fifo.head;
+    fifo.rptr = fifo.head;
+
+    cout << "write: " << (fifo.write('x') ? "bad": "OK") << endl;
+    cout << "read : " << (fifo.has() ? fifo.read() : '?') << endl;
+    cout << "write: " << (fifo.write('y') ? "bad": "OK") << endl;
+    cout << "write: " << (fifo.write('z') ? "bad": "OK") << endl;
+    cout << "write: " << (fifo.write('a') ? "bad": "OK") << endl;
+    cout << "read : " << (fifo.has() ? fifo.read() : '?') << endl;
+    cout << "read : " << (fifo.has() ? fifo.read() : '?') << endl;
+    cout << "read : " << (fifo.has() ? fifo.read() : '?') << endl;
+    cout << "read : " << (fifo.has() ? fifo.read() : '?') << endl;
+}

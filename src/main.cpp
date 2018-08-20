@@ -4,6 +4,11 @@
 #include <ESPAsyncWebServer.h>
 #include "AsyncJson.h"
 #include "ArduinoJson.h"
+#include "Ticker.h"
+
+// since this function seems not work on https://github.com/SmartArduino/XPT/blob/master/GM25-370DataSheetSR04-T2.pdf
+// which only generate two pulse, but not AB phase coding
+// #define ENABLE_HALL_SPEED_MEANSUREMENT
 
 // set how to detect speed, using pin change interrupt or using 10kHz timer
 #if false
@@ -13,7 +18,7 @@
     hw_timer_t * timer = NULL;
     #define PRESCALER 80  // prescale to 1MHz
     #define TIMER_CHANNEL 2  // since timer 0 and 1 will be used to generate PWM, use another one
-    #define TIMER_FREQUENCY 10000
+    #define TIMER_FREQUENCY 1000
 #endif
 
 // whether to print the 4 pin bits read in "motor_INT" function, this is just print data in interrupt function, which is unreliable implementation
@@ -52,11 +57,55 @@ extern const uint8_t jsjquery_end[] asm("_binary_static_js_jquery_min_js_end");
 #define M2P 33//35
 #define M2N 32//34
 
+
+#ifdef ENABLE_HALL_SPEED_MEANSUREMENT
+HardwareSerial RawSerial(1);  // serial to print raw data, without any log information
+#define RawRx 16
+#define RawTx 17
+
+// comment to cancel print this info 
+// #define PRINT_FIFO_INFO_INTERVAL 1
+
+#define unlikely(x) __builtin_expect(!!(x), 0)
+
+struct FIFO {  // this is designed to be thread safe, one thread for read and another for write
+    volatile char *rptr;
+    volatile char *wptr;
+    char *head;
+    char *tail;
+    bool write(char data) {  // return 0 if success, otherwise error
+        volatile char *w = wptr + 1;
+        if (unlikely(w == tail)) w = head;
+        if (unlikely(w == rptr)) return 1;  // fifo is full!
+        *wptr = data;  // must save data first
+        wptr = w;      // then change the pointer
+        return 0;
+    }
+    inline bool has() {
+        return rptr != wptr;
+    }
+    char read() {  // assume there has data, make sure you have check that!
+        char a = *rptr;
+        volatile char *r = rptr + 1;
+        if (unlikely(r == tail)) r = head;
+        rptr = r;  // then copy the pointer to it, do not change the rptr directly to avoid confliction with "write"
+        return a;
+    }
+    int len() { // do not call this often, just for debug
+        int length = tail - head;
+        return (wptr-rptr + (length)) % length;
+    }
+};
+struct FIFO fifo;  // no need to volatile
+#define INTBUF_SIZE 4096
+char intbuf[INTBUF_SIZE];
+#endif
+
 volatile uint8_t lastM1, lastM2;
 volatile int32_t mov1, mov2;
 
+#ifdef ENABLE_HALL_SPEED_MEANSUREMENT
 void IRAM_ATTR motor_INT() {  // handling magnetic coding part
-    return;
     uint8_t thisM1 = (((uint8_t)digitalRead(M1A)) << 1) + digitalRead(M1B);
     uint8_t thisM2 = (((uint8_t)digitalRead(M2A)) << 1) + digitalRead(M2B);
     uint8_t xor1 = thisM1 ^ lastM1, xor2 = thisM2 ^ lastM2;
@@ -73,7 +122,7 @@ void IRAM_ATTR motor_INT() {  // handling magnetic coding part
             ch1 = (((thisM1 >> 1) & thisM1) & 0x01) ? 1 : -1;
             break;
         default:  // WARNING: there must be bug or sampling rate is not enough
-            Serial.println("error 1");
+            // Serial.println("error 1");
             break;
     }
     switch(xor2) {
@@ -86,15 +135,17 @@ void IRAM_ATTR motor_INT() {  // handling magnetic coding part
             ch2 = (((thisM2 >> 1) & thisM2) & 0x01) ? 1 : -1;
             break;
         default:  // WARNING: there must be bug or sampling rate is not enough
-            Serial.println("error 2");
+            // Serial.println("error 2");
             break;
     }
     mov1 += ch1;
     mov2 += ch2;
     #ifdef ENABLE_MOTOR_INT_DATA_OUTPUT
         // Serial.print((char)(0x30 | (thisM1<<2) | thisM2));  // referred to ASCII table, this would be 0~9 : ; < = > ?, M1A-M1B-M2A-M2B order
+        fifo.write((0x30 | (thisM1<<2) | thisM2));
     #endif
 }
+#endif
 
 #define Err(xxx) do {\
     Serial.print("error: ");\
@@ -146,13 +197,39 @@ void updatePWM() {
     // Log(pwm[1]);
 }
 
+#ifdef ENABLE_HALL_SPEED_MEANSUREMENT
+void printFifoInfo() {
+    Serial.print("Now FIFO Length: ");
+    Serial.print(fifo.len());
+    Serial.print('/');
+    Serial.println(INTBUF_SIZE);
+}
+#endif
+
+Ticker fifoticker;
+
 void setup() {
+
+    #ifdef ENABLE_HALL_SPEED_MEANSUREMENT
+    // initialize fifo
+    fifo.head = intbuf;
+    fifo.tail = intbuf + INTBUF_SIZE;
+    fifo.rptr = fifo.head;
+    fifo.wptr = fifo.head;
+    #ifdef PRINT_FIFO_INFO_INTERVAL
+        fifoticker.attach(PRINT_FIFO_INFO_INTERVAL, printFifoInfo);
+    #endif
+    #endif
 
     mode = PWM;  // initialize mode
 
     Serial.begin(115200);
     Serial.println("movduino.ino    created on 2018/6/13 by wuyuepku");
     wiFiMulti.addAP("CDMA", "1877309730");  // this is my WIFI hotspot, you can add your own here
+
+    #ifdef ENABLE_HALL_SPEED_MEANSUREMENT
+    RawSerial.begin(115200, SERIAL_8N1, RawRx, RawTx);
+    #endif
 
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
         request->send(request->beginResponse_P(200, "text/html", indexhtml_start, indexhtml_end - indexhtml_start));  // in case the file is too large (10k level)
@@ -219,21 +296,23 @@ void setup() {
         request->send(404, "text/plain", "Not found");
     });
 
+    #ifdef ENABLE_HALL_SPEED_MEANSUREMENT
     pinMode(M1A, INPUT);
     pinMode(M1B, INPUT);
-    pinMode(M1P, OUTPUT);
-    pinMode(M1N, OUTPUT);
     pinMode(M2A, INPUT);
     pinMode(M2B, INPUT);
+    #endif
+    pinMode(M1P, OUTPUT);
+    pinMode(M1N, OUTPUT);
     pinMode(M2P, OUTPUT);
     pinMode(M2N, OUTPUT);
 
-    #ifdef USING_INTERRUPT_DETECT_SPEED
+    #ifdef USING_INTERRUPT_DETECT_SPEED && ENABLE_HALL_SPEED_MEANSUREMENT
         attachInterrupt(M1A, motor_INT, CHANGE);  // all link to one interrupt function
         attachInterrupt(M1B, motor_INT, CHANGE);
         attachInterrupt(M2A, motor_INT, CHANGE);
         attachInterrupt(M2B, motor_INT, CHANGE);
-    #elif defined USING_10KHzTIMR_DETECT_SPEED
+    #elif defined USING_10KHzTIMR_DETECT_SPEED && ENABLE_HALL_SPEED_MEANSUREMENT
         timer = timerBegin(TIMER_CHANNEL, PRESCALER, true);
         timerAttachInterrupt(timer, motor_INT, true);
         timerAlarmWrite(timer, 80000000 / PRESCALER / TIMER_FREQUENCY, true);  // true is to repeat
@@ -271,4 +350,11 @@ void loop() {
             server.begin();
         }
     }
+    
+    #ifdef ENABLE_HALL_SPEED_MEANSUREMENT
+    if (fifo.has()) {
+        // RawSerial.print(fifo.read());
+        Serial.print(fifo.read());
+    }
+    #endif
 }
