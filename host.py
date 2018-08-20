@@ -22,13 +22,15 @@ pwm = [0, 0]
 def nowState():
     global mode
     global pwm
+    global MAX_PWM_DUTY
     return jsonify({
         'mode': mode,
-        'heap': '666',
-        'ssid': 'CDMAwtf',
+        # 'heap': '666',
+        # 'ssid': 'CDMAwtf',
         'millis': int(time.time() * 1000),
         'pwm0': pwm[0],
-        'pwm1': pwm[1]
+        'pwm1': pwm[1],
+        'maxpwm': MAX_PWM_DUTY
     })
 
 @app.route("/sync", methods=['GET'])

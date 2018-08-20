@@ -7,6 +7,7 @@
 
 <!-- Bootstrap CSS -->
 <link rel="stylesheet" href="/static/css/bootstrap.min.css">
+<link rel="stylesheet" href="/static/css/bootstrap-slider.min.css">
 
 <title>tankmov</title>
 
@@ -14,6 +15,7 @@
 <link rel="shortcut icon" href="/static/tank200.png" type="image/x-icon">
 
 <style>
+
     .main {
         max-width: 800px;
         margin: 10px auto 0 auto;
@@ -21,9 +23,32 @@
         padding-left: 10px;
         padding-right: 10px;
     }
+
     .basic-button {
         height: 60px;
     }
+
+    #PWMadj1Slider .slider-handle {
+        background: red;
+    }
+
+    #PWMadj1Slider .slider-selection {
+        background: #FF8282;
+    }
+
+    #PWMadj2Slider .slider-selection {
+        background: #BABABA;
+    }
+    
+
+    #PWMadj1Slider {
+        width: calc(100% - 50px);
+    }
+
+    #PWMadj2Slider {
+        width: calc(100% - 50px);
+    }
+
 </style>
 
 </head>
@@ -40,9 +65,8 @@
         Last Sync: <strong id="lastsync">UNKNOWN</strong><br/>
         Now Time: <strong id="nowtime">UNKNOWN</strong><br/>
         Current Mode: <strong id="mode" style="color:red;">UNKNOWN</strong><br/>
-        Free Heap: <strong id="heap">UNKNOWN</strong><br/>
-        Current SSID: <strong id="ssid">UNKNOWN</strong><br/>
         Time millis: <strong id="millis">UNKNOWN</strong><br/>
+        Max PWM: <strong id="maxpwm">UNKNOWN</strong><br/>
     </div>
     <hr style="filter: alpha(opacity=100,finishopacity=0,style=3)" width="80%" color=#987cb9 size=3>
     <div id="PWMPanel">
@@ -53,7 +77,7 @@
                 <button type="button" class="btn btn-primary" onclick="pwmChange(0, -10);">-T</button>
                 <button type="button" class="btn btn-success" onclick="pwmChange(0, -1);">-</button>
             </div>
-            <input type="text" class="form-control" placeholder="Iris count" id="pwm0" value="0"
+            <input type="text" class="form-control" placeholder="PWM0" id="pwm0" value="0"
                 onKeyPress="if (event.keyCode == 13) event.srcElement.blur(); if ((event.keyCode<48 || event.keyCode>57)) event.returnValue=false;"
                 onblur="pwmSet(0, parseInt($('#pwm0').val()));" >
             <div class="input-group-append">
@@ -70,7 +94,7 @@
                 <button type="button" class="btn btn-primary" onclick="pwmChange(1, -10);">-T</button>
                 <button type="button" class="btn btn-success" onclick="pwmChange(1, -1);">-</button>
             </div>
-            <input type="text" class="form-control" placeholder="Iris count" id="pwm1" value="0"
+            <input type="text" class="form-control" placeholder="PWM1" id="pwm1" value="0"
                 onKeyPress="if (event.keyCode == 13) event.srcElement.blur(); if ((event.keyCode<48 || event.keyCode>57)) event.returnValue=false;"
                 onblur="pwmSet(1, parseInt($('#pwm1').val()));" >
             <div class="input-group-append">
@@ -79,6 +103,19 @@
                 <button type="button" class="btn btn-warning" onclick="pwmChange(1, 100);">+H</button>
                 <button type="button" class="btn btn-danger" onclick="pwmSet(1, 0);">0</button>
             </div>
+        </div>
+        <div>
+            Remote left: <strong id="pwm0act" style="display: inline-block; width: 80px;">NaN</strong>
+            right: <strong id="pwm1act" style="display: inline-block; width: 80px;">NaN</strong>
+        </div>
+        <div style="margin-top: 10px;"> <!-- rough adjust, with -1000 ~ 1000 -->
+            <input id="PWMadj1" data-slider-id='PWMadj1Slider' type="text" data-slider-min="-1000" data-slider-max="1000" data-slider-step="1" data-slider-value="0"
+            data-slider-handle="square"/>
+            <button type="button" class="btn btn-danger" onclick="slider1.slider('setValue', 0); updateSlider();" style="margin-left: 10px;">0</button>
+        </div>
+        <div style="margin-top: 10px;"> <!-- fine adjust, with -100 ~ 100 -->
+            <input id="PWMadj2" data-slider-id='PWMadj2Slider' type="text" data-slider-min="-100" data-slider-max="100" data-slider-step="1" data-slider-value="0"/>
+            <button type="button" class="btn btn-danger" onclick="slider2.slider('setValue', 0); updateSlider();" style="margin-left: 10px;">0</button>
         </div>
     </div>
     <div id="PIDPanel" style="display: none;">
@@ -91,25 +128,31 @@
 
 <script src="/static/js/jquery.min.js"></script>
 <script src="/static/js/bootstrap.min.js"></script>
+<script src="/static/js/bootstrap-slider.min.js"></script>
     
 <script>
+
+    var maxPWMval = 100;  // will be changed when sync
     
     function updateView(settings) {
         console.log(settings);
         let d = new Date();
         $('#lastsync').html(d.getHours() + ":" + d.getMinutes() + ":" + d.getSeconds() + "." + d.getMilliseconds());
-        let arr = ['mode', 'heap', 'ssid', 'millis'];
+        let arr = ['mode', 'heap', 'ssid', 'millis', 'maxpwm'];
         for (let i in arr) {
             let id = arr[i];
             if (id in settings) $('#' + id).html(settings[id]);
         }
+        if ('maxpwm' in arr) {
+            maxPWMval = arr['maxpwm'];
+        }
         arr = ['pwm0', 'pwm1'];
         for (let i in arr) {
             let id = arr[i];
-            if (id in settings) $('#' + id).val(settings[id]);
+            if (id in settings) $('#' + id + "act").html(settings[id]);
         }
-        if ('pwm0 in settings') pwm[0] = settings['pwm0'];
-        if ('pwm1 in settings') pwm[1] = settings['pwm1'];
+        if ('pwm0' in settings) pwm[0] = settings['pwm0'];
+        if ('pwm1' in settings) pwm[1] = settings['pwm1'];
         if ('mode' in settings) {
             let mode = settings['mode'];
             let modesToDelete = ['PWM', 'PID', 'haha'];
@@ -136,13 +179,37 @@
 
     var pwm = [0, 0];
     function pwmSet(motor, value) {
+        // first reset the slider
+        slider1.slider('setValue', 0);
+        slider2.slider('setValue', 0);
+
         let pwm0 = pwm[0];
         let pwm1 = pwm[1];
-        if (motor == 0) pwm0 = value;
-        else pwm1 = value;
+        if (motor == 0) {
+            pwm0 = value;
+            $('#pwm0').val(value);
+        } else {
+            pwm1 = value;
+            $('#pwm1').val(value);
+        }
         $.post("setPWM", {
             pwm0: pwm0,
             pwm1: pwm1
+        }, function(result) {
+            updateView(result);
+        });
+    }
+
+    function updateSlider() {
+        let pwmwant0 = parseInt($('#pwm0').val());
+        let pwmwant1 = parseInt($('#pwm1').val());
+        let rough = slider1.slider('getValue');
+        let fine = slider2.slider('getValue');
+        let actualpwm0 = pwmwant0 + rough + fine;
+        let actualpwm1 = pwmwant1 - rough - fine;
+        $.post("setPWM", {
+            pwm0: actualpwm0,
+            pwm1: actualpwm1
         }, function(result) {
             updateView(result);
         });
@@ -151,6 +218,15 @@
     function pwmChange(motor, delta) {
         pwmSet(motor, pwm[motor] + delta);
     }
+
+    var slider1 = null;
+    var slider2 = null;
+    $(function () {
+        slider1 = $('#PWMadj1').slider().on('slideStop', updateSlider);
+        slider2 = $('#PWMadj2').slider().on('slideStop', updateSlider);
+    });
+
+
 
 
 

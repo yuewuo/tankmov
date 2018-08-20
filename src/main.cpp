@@ -13,7 +13,7 @@
     hw_timer_t * timer = NULL;
     #define PRESCALER 80  // prescale to 1MHz
     #define TIMER_CHANNEL 2  // since timer 0 and 1 will be used to generate PWM, use another one
-    #define TIMER_FREQUENCY 1000000
+    #define TIMER_FREQUENCY 10000
 #endif
 
 // whether to print the 4 pin bits read in "motor_INT" function, this is just print data in interrupt function, which is unreliable implementation
@@ -35,23 +35,28 @@ extern const uint8_t cssbootstrap_start[] asm("_binary_static_css_bootstrap_min_
 extern const uint8_t cssbootstrap_end[] asm("_binary_static_css_bootstrap_min_css_end");
 extern const uint8_t jsbootstrap_start[] asm("_binary_static_js_bootstrap_min_js_start");
 extern const uint8_t jsbootstrap_end[] asm("_binary_static_js_bootstrap_min_js_end");
+extern const uint8_t cssbootstrap_slider_start[] asm("_binary_static_css_bootstrap_slider_min_css_start");
+extern const uint8_t cssbootstrap_slider_end[] asm("_binary_static_css_bootstrap_slider_min_css_end");
+extern const uint8_t jsbootstrap_slider_start[] asm("_binary_static_js_bootstrap_slider_min_js_start");
+extern const uint8_t jsbootstrap_slider_end[] asm("_binary_static_js_bootstrap_slider_min_js_end");
 extern const uint8_t jsjquery_start[] asm("_binary_static_js_jquery_min_js_start");
 extern const uint8_t jsjquery_end[] asm("_binary_static_js_jquery_min_js_end");
 
 #define M1A 12  // magnetic coding A
 #define M1B 14
-#define M1P 2//27  // motor P
+#define M1P 27  // motor P
 #define M1N 26
 
-#define M2A 33
-#define M2B 32
-#define M2P 35
-#define M2N 34
+#define M2A 34//33
+#define M2B 35//32
+#define M2P 33//35
+#define M2N 32//34
 
 volatile uint8_t lastM1, lastM2;
 volatile int32_t mov1, mov2;
 
 void IRAM_ATTR motor_INT() {  // handling magnetic coding part
+    return;
     uint8_t thisM1 = (((uint8_t)digitalRead(M1A)) << 1) + digitalRead(M1B);
     uint8_t thisM2 = (((uint8_t)digitalRead(M2A)) << 1) + digitalRead(M2B);
     uint8_t xor1 = thisM1 ^ lastM1, xor2 = thisM2 ^ lastM2;
@@ -87,7 +92,7 @@ void IRAM_ATTR motor_INT() {  // handling magnetic coding part
     mov1 += ch1;
     mov2 += ch2;
     #ifdef ENABLE_MOTOR_INT_DATA_OUTPUT
-        Serial.print((char)(0x30 | (thisM1<<2) | thisM2));  // referred to ASCII table, this would be 0~9 : ; < = > ?, M1A-M1B-M2A-M2B order
+        // Serial.print((char)(0x30 | (thisM1<<2) | thisM2));  // referred to ASCII table, this would be 0~9 : ; < = > ?, M1A-M1B-M2A-M2B order
     #endif
 }
 
@@ -108,14 +113,15 @@ void setNowState(AsyncWebServerRequest *request) {
     AsyncResponseStream *response = request->beginResponseStream("application/json");
     DynamicJsonBuffer jsonBuffer;
     JsonObject &root = jsonBuffer.createObject();
-    root["heap"] = ESP.getFreeHeap();
-    root["ssid"] = WiFi.SSID();
+    // root["heap"] = ESP.getFreeHeap();
+    // root["ssid"] = WiFi.SSID();
     root["mode"] = mode == PWM ? "PWM" : 
         (mode == PID ? "PID" :
         "UNKNOWN");
     root["millis"] = millis();
     root["pwm0"] = pwm0;
     root["pwm1"] = pwm1;
+    root["maxpwm"] = MAX_PWM_DUTY;
     root.printTo(*response);
     request->send(response);
 }
@@ -161,6 +167,12 @@ void setup() {
     });
     server.on("/static/js/bootstrap.min.js", HTTP_GET, [](AsyncWebServerRequest *request){
         request->send(request->beginResponse_P(200, "application/x-javascript", jsbootstrap_start, jsbootstrap_end - jsbootstrap_start - 1));  // the image file is too large (33k)
+    });
+    server.on("/static/css/bootstrap-slider.min.css", HTTP_GET, [](AsyncWebServerRequest *request){
+        request->send(request->beginResponse_P(200, "text/css", cssbootstrap_slider_start, cssbootstrap_slider_end - cssbootstrap_slider_start - 1));  // the image file is too large (33k)
+    });
+    server.on("/static/js/bootstrap-slider.min.js", HTTP_GET, [](AsyncWebServerRequest *request){
+        request->send(request->beginResponse_P(200, "application/x-javascript", jsbootstrap_slider_start, jsbootstrap_slider_end - jsbootstrap_slider_start - 1));  // the image file is too large (33k)
     });
     server.on("/static/js/jquery.min.js", HTTP_GET, [](AsyncWebServerRequest *request){
         request->send(request->beginResponse_P(200, "application/x-javascript", jsjquery_start, jsjquery_end - jsjquery_start - 1));  // the image file is too large (33k)
