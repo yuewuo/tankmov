@@ -226,6 +226,7 @@ void setup() {
     Serial.begin(115200);
     Serial.println("movduino.ino    created on 2018/6/13 by wuyuepku");
     wiFiMulti.addAP("CDMA", "1877309730");  // this is my WIFI hotspot, you can add your own here
+    wiFiMulti.addAP("SOAR_513", "soar@ceca");
 
     #ifdef ENABLE_HALL_SPEED_MEANSUREMENT
     RawSerial.begin(115200, SERIAL_8N1, RawRx, RawTx);

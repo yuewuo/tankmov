@@ -117,6 +117,13 @@
             <input id="PWMadj2" data-slider-id='PWMadj2Slider' type="text" data-slider-min="-100" data-slider-max="100" data-slider-step="1" data-slider-value="0"/>
             <button type="button" class="btn btn-danger" onclick="slider2.slider('setValue', 0); updateSlider();" style="margin-left: 10px;">0</button>
         </div>
+        <input type="number" id="pwmbase" value="300" class="form-control" style="width: 80px; display: inline-block;">
+        <button type="button" class="btn btn-warning" onclick="setdirection(1,-1)">left</button>
+        <button type="button" class="btn btn-success" onclick="setdirection(1,1)">ahead</button>
+        <button type="button" class="btn btn-danger" onclick="setdirection(-1,-1)">back</button>
+        <button type="button" class="btn btn-warning" onclick="setdirection(-1,1)">right</button>
+        <br>
+        <button type="button" class="btn btn-danger" style="width: 100%; margin: 10px 0 10px 0;" onclick="setdirection(0,0)">stop</button>
     </div>
     <div id="PIDPanel" style="display: none;">
 
@@ -198,6 +205,11 @@
         }, function(result) {
             updateView(result);
         });
+    }
+
+    function setdirection(left, right) {
+        let pwm = parseInt($('#pwmbase').val());;
+        console.log("" + (pwm*left) + "," + (pwm*right));
     }
 
     function updateSlider() {
