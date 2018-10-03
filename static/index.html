@@ -209,7 +209,15 @@
 
     function setdirection(left, right) {
         let pwm = parseInt($('#pwmbase').val());;
-        console.log("" + (pwm*left) + "," + (pwm*right));
+        let l = pwm*left;
+        let r = pwm*right
+        console.log("" + l + "," + r);
+        $.post("setPWM", {
+            pwm0: l,
+            pwm1: r
+        }, function(result) {
+            updateView(result);
+        });
     }
 
     function updateSlider() {
