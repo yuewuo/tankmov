@@ -8,10 +8,10 @@
 
 // since this function seems not work on https://github.com/SmartArduino/XPT/blob/master/GM25-370DataSheetSR04-T2.pdf
 // which only generate two pulse, but not AB phase coding
-// #define ENABLE_HALL_SPEED_MEANSUREMENT
+#define ENABLE_HALL_SPEED_MEANSUREMENT
 
 // set how to detect speed, using pin change interrupt or using 10kHz timer
-#if false
+#if true
     #define USING_INTERRUPT_DETECT_SPEED
 #else
     #define USING_10KHzTIMR_DETECT_SPEED
@@ -21,8 +21,18 @@
     #define TIMER_FREQUENCY 1000
 #endif
 
+// timer to send speed data
+#if true
+    #define USING_1HzTIMR_SEND_SPEED
+    // #define SHOW_READABLE_SPEED
+    hw_timer_t * timer1Hz = NULL;
+    #define PRESCALER1Hz 80
+    #define TIMER1Hz_CHANNEL 3
+    #define TIMER1Hz_FREQUENCY 2
+#endif
+
 // whether to print the 4 pin bits read in "motor_INT" function, this is just print data in interrupt function, which is unreliable implementation
-#define ENABLE_MOTOR_INT_DATA_OUTPUT
+// #define ENABLE_MOTOR_INT_DATA_OUTPUT
 
 #define PWM_FREQUENCY 20000  // 20kHz
 #define PWM_RESOLUTION 10  // bit, the resolution of PWM duty
@@ -47,8 +57,8 @@ extern const uint8_t jsbootstrap_slider_end[] asm("_binary_static_js_bootstrap_s
 extern const uint8_t jsjquery_start[] asm("_binary_static_js_jquery_min_js_start");
 extern const uint8_t jsjquery_end[] asm("_binary_static_js_jquery_min_js_end");
 
-#define M1A 12  // magnetic coding A
-#define M1B 14
+#define M1A 36//12  // magnetic coding A
+#define M1B 39//14
 #define M1P 27  // motor P
 #define M1N 26
 
@@ -109,41 +119,55 @@ void IRAM_ATTR motor_INT() {  // handling magnetic coding part
     uint8_t thisM1 = (((uint8_t)digitalRead(M1A)) << 1) + digitalRead(M1B);
     uint8_t thisM2 = (((uint8_t)digitalRead(M2A)) << 1) + digitalRead(M2B);
     uint8_t xor1 = thisM1 ^ lastM1, xor2 = thisM2 ^ lastM2;
-    lastM1 = thisM1;
-    lastM2 = thisM2;
-    uint8_t ch1 = 0, ch2 = 0;
+    int8_t ch1 = 0, ch2 = 0;
     switch(xor1) {
         case 0x00:  // not changed
             break;
-        case 0x01:
-            ch1 = (((thisM1 >> 1) & thisM1) & 0x01) ? -1 : 1;
-            break;
-        case 0x02:
-            ch1 = (((thisM1 >> 1) & thisM1) & 0x01) ? 1 : -1;
-            break;
-        default:  // WARNING: there must be bug or sampling rate is not enough
+        case 0x03:  // WARNING: there must be bug or sampling rate is not enough
             // Serial.println("error 1");
+            break;
+        default:
+            ch1 = ((thisM1 >> 1) ^ (lastM1 & 0x01)) ? -1 : 1;
             break;
     }
     switch(xor2) {
         case 0x00:  // not changed
             break;
-        case 0x01:
-            ch2 = (((thisM2 >> 1) & thisM2) & 0x01) ? -1 : 1;
-            break;
-        case 0x02:
-            ch2 = (((thisM2 >> 1) & thisM2) & 0x01) ? 1 : -1;
-            break;
-        default:  // WARNING: there must be bug or sampling rate is not enough
+        case 0x03:  // WARNING: there must be bug or sampling rate is not enough
             // Serial.println("error 2");
             break;
+        default:
+            ch2 = ((thisM2 >> 1) ^ (lastM2 & 0x01)) ? 1 : -1;
+            break;
     }
+    lastM1 = thisM1;
+    lastM2 = thisM2;
     mov1 += ch1;
     mov2 += ch2;
     #ifdef ENABLE_MOTOR_INT_DATA_OUTPUT
         // Serial.print((char)(0x30 | (thisM1<<2) | thisM2));  // referred to ASCII table, this would be 0~9 : ; < = > ?, M1A-M1B-M2A-M2B order
         fifo.write((0x30 | (thisM1<<2) | thisM2));
     #endif
+}
+#endif
+
+#ifdef USING_1HzTIMR_SEND_SPEED
+int mv1=0, mv2=0, mva=0;
+void IRAM_ATTR send1Hz_INT() {
+    char msg[32];
+    char* cp = msg;
+    mv1 = mov1;
+    mv2 = mov2;
+    mov1 = 0;  // already volatile, so no conflict
+    mov2 = 0;
+    mva = (mv1 + mv2) / 2;
+    sprintf(msg, "%d - %d %d\n", mva, mv1, mv2);
+    #ifdef SHOW_READABLE_SPEED
+        while (*cp) fifo.write(*(cp++));
+    #else
+        fifo.write(0xFF & mva);
+    #endif
+    Serial.print(msg);
 }
 #endif
 
@@ -207,6 +231,7 @@ void printFifoInfo() {
 #endif
 
 Ticker fifoticker;
+char speedstr[32];
 
 void setup() {
 
@@ -260,6 +285,11 @@ void setup() {
         setNowState(request);
     });
 
+    server.on("/speed", HTTP_GET, [](AsyncWebServerRequest *request) {
+        sprintf(speedstr, "%d %d %d", mva, mv1, mv2);
+        request->send(200, "text/plain", speedstr);
+    });
+
     server.on("/setMode", HTTP_POST, [](AsyncWebServerRequest *request){
         if (request->hasParam("mode", true)) {
             const String& newMode = request->getParam("mode", true)->value();
@@ -308,16 +338,23 @@ void setup() {
     pinMode(M2P, OUTPUT);
     pinMode(M2N, OUTPUT);
 
-    #ifdef USING_INTERRUPT_DETECT_SPEED && ENABLE_HALL_SPEED_MEANSUREMENT
+    #if defined USING_INTERRUPT_DETECT_SPEED && defined ENABLE_HALL_SPEED_MEANSUREMENT
         attachInterrupt(M1A, motor_INT, CHANGE);  // all link to one interrupt function
         attachInterrupt(M1B, motor_INT, CHANGE);
         attachInterrupt(M2A, motor_INT, CHANGE);
         attachInterrupt(M2B, motor_INT, CHANGE);
-    #elif defined USING_10KHzTIMR_DETECT_SPEED && ENABLE_HALL_SPEED_MEANSUREMENT
+    #elif defined USING_10KHzTIMR_DETECT_SPEED && defined ENABLE_HALL_SPEED_MEANSUREMENT
         timer = timerBegin(TIMER_CHANNEL, PRESCALER, true);
         timerAttachInterrupt(timer, motor_INT, true);
         timerAlarmWrite(timer, 80000000 / PRESCALER / TIMER_FREQUENCY, true);  // true is to repeat
         timerAlarmEnable(timer);  // enable interrupt
+    #endif
+
+    #ifdef USING_1HzTIMR_SEND_SPEED
+        timer1Hz = timerBegin(TIMER1Hz_CHANNEL, PRESCALER1Hz, true);
+        timerAttachInterrupt(timer1Hz, send1Hz_INT, true);
+        timerAlarmWrite(timer1Hz, 80000000 / PRESCALER1Hz / TIMER1Hz_FREQUENCY, true);  // true is to repeat
+        timerAlarmEnable(timer1Hz);  // enable interrupt
     #endif
 
     // use LEDc to generate PWM
@@ -354,8 +391,8 @@ void loop() {
     
     #ifdef ENABLE_HALL_SPEED_MEANSUREMENT
     if (fifo.has()) {
-        // RawSerial.print(fifo.read());
-        Serial.print(fifo.read());
+        RawSerial.print(fifo.read());
+        // Serial.print(fifo.read());
     }
     #endif
 }
