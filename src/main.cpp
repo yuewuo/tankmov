@@ -28,7 +28,7 @@
     hw_timer_t * timer1Hz = NULL;
     #define PRESCALER1Hz 80
     #define TIMER1Hz_CHANNEL 3
-    #define TIMER1Hz_FREQUENCY 2
+    #define TIMER1Hz_FREQUENCY 8
 #endif
 
 // whether to print the 4 pin bits read in "motor_INT" function, this is just print data in interrupt function, which is unreliable implementation
@@ -40,6 +40,7 @@ const int MAX_PWM_DUTY = (1<<PWM_RESOLUTION) - 1;  // the maxmium duty
 
 WiFiMulti wiFiMulti;  // enables multiple WIFI connection try
 AsyncWebServer server(80);  // listen for connection on 80 port
+WiFiServer server233(233);
 bool lastTimeIsConnected = false;  // to print IP information each time you connected
 
 extern const uint8_t indexhtml_start[] asm("_binary_static_index_html_start");
@@ -221,6 +222,16 @@ void updatePWM() {
     // Log(pwm[1]);
 }
 
+void safe_setspeed(int tpwm0, int tpwm1) {
+    if (tpwm0 > MAX_PWM_DUTY) tpwm0 = MAX_PWM_DUTY;
+    if (tpwm0 < -MAX_PWM_DUTY) tpwm0 = -MAX_PWM_DUTY;
+    if (tpwm1 > MAX_PWM_DUTY) tpwm1 = MAX_PWM_DUTY;
+    if (tpwm1 < -MAX_PWM_DUTY) tpwm1 = -MAX_PWM_DUTY;  // limit the bound
+    pwm0 = tpwm0;
+    pwm1 = tpwm1;
+    updatePWM();
+}
+
 #ifdef ENABLE_HALL_SPEED_MEANSUREMENT
 void printFifoInfo() {
     Serial.print("Now FIFO Length: ");
@@ -307,13 +318,7 @@ void setup() {
             if (mode == PWM) {
                 int tpwm0 = atoi(request->getParam("pwm0", true)->value().c_str());
                 int tpwm1 = atoi(request->getParam("pwm1", true)->value().c_str());
-                if (tpwm0 > MAX_PWM_DUTY) tpwm0 = MAX_PWM_DUTY;
-                if (tpwm0 < -MAX_PWM_DUTY) tpwm0 = -MAX_PWM_DUTY;
-                if (tpwm1 > MAX_PWM_DUTY) tpwm1 = MAX_PWM_DUTY;
-                if (tpwm1 < -MAX_PWM_DUTY) tpwm1 = -MAX_PWM_DUTY;  // limit the bound
-                pwm0 = tpwm0;
-                pwm1 = tpwm1;
-                updatePWM();
+                safe_setspeed(tpwm0, tpwm1);
             } else {
                 Err("cannot set PWM when mode is not \"PWM\"");
             }
@@ -375,7 +380,42 @@ void setup() {
 
 }
 
+WiFiClient client233;
+String str233 = "";
+char cstr233[20];
+
 void loop() {
+    if (client233) {  // return connected();
+        if (client233.available()) {
+            char c = client233.read();
+            if (c != '\n') {
+                str233 += c;
+            } else {
+                Serial.println(str233);
+                if (str233.length() == 18 && str233.startsWith("setspeed")) {  
+                    // something like "setspeed 1023 1023" or "setspeed     0    0", must be length of 18, use "setspeed%5d%5d" to generate
+                    strcpy(cstr233, str233.c_str());
+                    cstr233[13] = '\0';
+                    int tpwm0 = atoi(cstr233 + 9);
+                    int tpwm1 = atoi(cstr233 + 14);
+                    // sscanf(str233.c_str() + 8, "%d%d", &tpwm0, &tpwm1);  // failed
+                    Serial.print("tpwm0=");
+                    Serial.print(tpwm0);
+                    Serial.print(", tpwm1=");
+                    Serial.println(tpwm1);
+                    safe_setspeed(tpwm0, tpwm1);
+                }
+                str233 = "";
+            }
+        }
+    } else {
+        client233 = server233.available();
+        if (client233) {
+            Serial.print("New Client. ");
+            Serial.print(client233.remoteIP());  // printable
+        }
+    }
+
     if (wiFiMulti.run() != WL_CONNECTED) {
         Serial.println("try connect to WIFI...");
         lastTimeIsConnected = false;
@@ -386,6 +426,7 @@ void loop() {
             Serial.println(WiFi.localIP());  // print IP to user
             lastTimeIsConnected = true;
             server.begin();
+            server233.begin();
         }
     }
     
@@ -395,4 +436,5 @@ void loop() {
         // Serial.print(fifo.read());
     }
     #endif
+
 }
