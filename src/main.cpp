@@ -156,7 +156,9 @@ void IRAM_ATTR motor_INT() {  // handling magnetic coding part
 int mv1=0, mv2=0, mva=0;
 void IRAM_ATTR send1Hz_INT() {
     char msg[32];
-    char* cp = msg;
+    #ifdef SHOW_READABLE_SPEED
+        char* cp = msg;
+    #endif
     mv1 = mov1;
     mv2 = mov2;
     mov1 = 0;  // already volatile, so no conflict
@@ -382,8 +384,7 @@ void setup() {
 
 WiFiClient client233;
 String str233 = "";
-char cstr233[20];
-
+char cstr233[22];
 void loop() {
     if (client233) {  // return connected();
         if (client233.available()) {
@@ -392,12 +393,12 @@ void loop() {
                 str233 += c;
             } else {
                 Serial.println(str233);
-                if (str233.length() == 18 && str233.startsWith("setspeed")) {  
-                    // something like "setspeed 1023 1023" or "setspeed     0    0", must be length of 18, use "setspeed%5d%5d" to generate
+                if (str233.length() == 20 && str233.startsWith("setspeed")) {
+                    // something like "setspeed -1023 -1023" or "setspeed      0     0", must be length of 20, use "setspeed%6d%6d" to generate
                     strcpy(cstr233, str233.c_str());
-                    cstr233[13] = '\0';
+                    cstr233[14] = '\0';
                     int tpwm0 = atoi(cstr233 + 9);
-                    int tpwm1 = atoi(cstr233 + 14);
+                    int tpwm1 = atoi(cstr233 + 15);
                     // sscanf(str233.c_str() + 8, "%d%d", &tpwm0, &tpwm1);  // failed
                     Serial.print("tpwm0=");
                     Serial.print(tpwm0);
@@ -413,6 +414,7 @@ void loop() {
         if (client233) {
             Serial.print("New Client. ");
             Serial.print(client233.remoteIP());  // printable
+            str233 = "";
         }
     }
 
