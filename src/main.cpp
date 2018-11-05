@@ -5,6 +5,7 @@
 #include "AsyncJson.h"
 #include "ArduinoJson.h"
 #include "Ticker.h"
+#include "AsyncUDP.h"
 
 // since this function seems not work on https://github.com/SmartArduino/XPT/blob/master/GM25-370DataSheetSR04-T2.pdf
 // which only generate two pulse, but not AB phase coding
@@ -41,6 +42,8 @@ const int MAX_PWM_DUTY = (1<<PWM_RESOLUTION) - 1;  // the maxmium duty
 WiFiMulti wiFiMulti;  // enables multiple WIFI connection try
 AsyncWebServer server(80);  // listen for connection on 80 port
 WiFiServer server233(233);
+#define UDP_SERVER_PORT 1234
+AsyncUDP udp;
 bool lastTimeIsConnected = false;  // to print IP information each time you connected
 
 extern const uint8_t indexhtml_start[] asm("_binary_static_index_html_start");
@@ -170,7 +173,7 @@ void IRAM_ATTR send1Hz_INT() {
     #else
         fifo.write(0xFF & mva);
     #endif
-    Serial.print(msg);
+    // Serial.print(msg);
 }
 #endif
 
@@ -429,6 +432,30 @@ void loop() {
             lastTimeIsConnected = true;
             server.begin();
             server233.begin();
+            if (udp.listen(UDP_SERVER_PORT)) {
+                Serial.println("UDP Listening");
+                udp.onPacket([](AsyncUDPPacket packet) {
+                    Serial.print("UDP Packet Type: ");
+                    Serial.print(packet.isBroadcast()?"Broadcast":packet.isMulticast()?"Multicast":"Unicast");
+                    Serial.print(", From: ");
+                    Serial.print(packet.remoteIP());
+                    Serial.print(":");
+                    Serial.print(packet.remotePort());
+                    Serial.print(", To: ");
+                    Serial.print(packet.localIP());
+                    Serial.print(":");
+                    Serial.print(packet.localPort());
+                    Serial.print(", Length: ");
+                    Serial.print(packet.length());
+                    Serial.print(", Data: ");
+                    Serial.write(packet.data(), packet.length());
+                    Serial.println();
+                    //reply to the client
+                    packet.printf("Got %u bytes of data", packet.length());
+                });
+            } else {
+                Serial.println("error: UDP cannot listen");
+            }
         }
     }
     
@@ -438,5 +465,13 @@ void loop() {
         // Serial.print(fifo.read());
     }
     #endif
+
+    if (Serial.available()) {
+        char ic = Serial.read();
+        if (ic == 'i') {  // print IP
+            Serial.print("now IP is: ");
+            Serial.println(WiFi.localIP());  // print IP to user
+        }
+    }
 
 }
