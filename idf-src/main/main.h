@@ -12,3 +12,4 @@ extern void motor_update_speed(float speed1, float speed2);
 #define M2P 33
 #define M2N 32
 
+#define GPIO_OUTPUT_PIN_SEL ((1ULL<<M1P) | (1ULL<<M1N) | (1ULL<<M2P) | (1ULL<<M2N))
